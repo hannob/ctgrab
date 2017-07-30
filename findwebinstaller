@@ -1,0 +1,45 @@
+#!/bin/bash
+
+content=$(curl -m 5 -ksL https://"${1}"/ | tr -d \\0)
+
+echo "${content}" | grep -q '<title>WordPress &rsaquo; Setup Configuration File</title>'
+[[ "${?}" -eq 0 ]] && echo wordpress on "${1}"
+
+echo "${content}" | grep -q 'Choose language | Drupal'
+[[ "${?}" -eq 0 ]] && echo drupal 8 on "${1}"
+
+echo "${content}" | grep -q 'Select an installation profile'
+[[ "${?}" -eq 0 ]] && echo drupal 7 on "${1}"
+
+echo "${content}" | grep -q '<p>LocalSettings.php not found.</p>'
+[[ "${?}" -eq 0 ]] && echo mediawiki [harmless] on "${1}"
+
+echo "${content}" | grep -q '<legend>Create an <strong>admin account</strong></legend>'
+if [[ "${?}" -eq 0 ]]; then
+	echo "${content}" | grep -q "Nextcloud"
+	if [[ "${?}" -eq 0 ]]; then
+		echo nextcloud on "${1}"
+	else
+		echo owncloud on "${1}"
+	fi
+fi
+
+echo "${content}" | grep -q '<title>Joomla! Web Installer</title>'
+[[ "${?}" -eq 0 ]] && echo joomla on "${1}"
+
+# Typo3 has an extra protection to create a file FIRST_INSTALL,
+# but it doesn't really help
+echo "${content}" | grep -q '<title>Installing TYPO3 CMS</title>'
+[[ "${?}" -eq 0 ]] && echo typo3 on "${1}"
+
+echo "${content}" | grep -q '<h2>Welcome to the Serendipity Installation</h2>'
+[[ "${?}" -eq 0 ]] && echo serendipity on "${1}"
+
+echo "${content}" | grep -q '<body ng-app="app" id="installation">'
+[[ "${?}" -eq 0 ]] && echo piwik on "${1}"
+
+echo "${content}" | grep -q '<a href="/phpbb/install/app.php/install">Install</a>'
+[[ "${?}" -eq 0 ]] && echo phpbb on "${1}"
+
+echo "${content}" | grep -q 'config.php is missing or corrupt.'
+[[ "${?}" -eq 0 ]] && echo textpattern [harmless] on "${1}"

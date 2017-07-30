@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# Dependencies:
+# * bash
+# * curl (fetch HTTP API)
+# * jq (parse json)
+# * openssl (parse certificates)
+# * GNU parallel (parallelize checking of hostnames)
+# * zstd (efficient compression of output data)
+#
+# Certificate Transparency API doc in RFC 6962:
+# https://tools.ietf.org/html/rfc6962
+
+DEBUG=0
+KEEPTEMP=1
+
+for pid in $(pidof -x ctgrab); do
+	if [[ ${pid} != $$ ]]; then
+		[[ "${DEBUG}" -eq 1 ]] && echo "script already running"
+		exit 1
+	fi
+done
+
+BASEDIR="$(dirname ${0})"
+
+CTLOGS=$(cat "${BASEDIR}/ctloglist.txt")
+
+for CTLOG in ${CTLOGS}; do
+
+	TMP="$(mktemp -d)"
+	[[ "${DEBUG}" -eq 1 ]] && echo tmpfiles in "${TMP}"
+
+	LOG="${BASEDIR}/${CTLOG//[!a-z0-9]/_}"
+	[[ -d "${LOG}" ]] || mkdir "${LOG}"
+
+	tree_size=$(curl -ks "https://${CTLOG}ct/v1/get-sth" | jq .tree_size)
+
+	if ! [[ -e "${LOG}/tree_size" ]]; then
+		# if we don't have an old tree size logged we read 1000 entries
+		if [[ "${tree_size}" -lt 1000 ]]; then
+			old_tree_size=0
+		else
+			old_tree_size=$((tree_size - 1000))
+		fi
+		echo "${tree_size}" > "${LOG}/tree_size"
+	elif [[ "${tree_size}" -eq "$(cat "${LOG}/tree_size")" ]]; then
+		[[ "${DEBUG}" -eq 1 ]] && echo "nothing to do log ${CTLOG} tree_size ${tree_size}"
+		continue
+	else
+		old_tree_size=$(cat "${LOG}/tree_size")
+		echo "${tree_size}" > "${LOG}/tree_size"
+	fi
+
+	end=$((tree_size - 1))
+	start="${old_tree_size}"
+
+	[[ "${DEBUG}" -eq 1 ]] && echo fetching "$CTLOG" from "$start" to "$end"
+
+	curl -ks -o "${TMP}/log_entries" "https://${CTLOG}ct/v1/get-entries?start=$start&end=$end"
+	leafs=$(jq '.entries | .[].leaf_input' "${TMP}/log_entries" | sed -e 's:"::g')
+
+
+	for crt in $leafs; do
+		echo "${crt}" | base64 -d | tail -c +16 | openssl x509 -inform der -text -noout -certopt no_subject,no_header,no_version,no_serial,no_signame,no_validity,no_subject,no_issuer,no_pubkey,no_sigdump,no_aux 2>/dev/null | grep "DNS:" | sed -e 's:,:\n:g' -e 's/DNS://g' -e 's: ::g' -e 's:\*\.::g'
+	done | sort -u > "${TMP}/hostnames"
+
+#	sort -u "${TMP}/hostnames"  "${TMP}/hostnames.sorted_unique"
+
+	parallel -a "${TMP}/hostnames" --no-notice --timeout 60 --jobs 100 "$BASEDIR/findwebinstaller" > "${TMP}/webapps"
+
+	# print output if we found something
+	cat "${TMP}/webapps"
+
+	if [[ "$KEEPTEMP" -eq 1 ]]; then
+		zstd --rm -q "${TMP}/hostnames"
+		zstd --rm -q "${TMP}/log_entries"
+		find "${TMP}/webapps" -size 0 -delete
+		mv "${TMP}" "${LOG}/${start}-${end}"
+		[[ "${DEBUG}" -eq 1 ]] && echo moved tmpdir to "${LOG}/${start}-${end}"
+	else
+		rm -rf "${TMP}"
+	fi
+
+done

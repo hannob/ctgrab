@@ -1,0 +1,6 @@
+#!/bin/sh
+
+for i in $(curl -s https://www.gstatic.com/ct/log_list/all_logs_list.json | jq -r ' .logs | .[] | .url'); do
+	curl --max-time 5 -s -I -X GET https://${i}ct/v1/get-sth | grep -q "200 OK"
+	[ $? -eq 0 ] && echo $i
+done > ctloglist.txt
