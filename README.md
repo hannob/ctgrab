@@ -6,9 +6,9 @@ for unprotected web installers.
 background
 ==========
 
-(Certificate Transparency: Hacking web applications before they are installed / Golem.de)[https://www.golem.de/news/certificate-transparency-hacking-web-applications-before-they-are-installed-1707-129172.html]
+[Certificate Transparency: Hacking web applications before they are installed / Golem.de](https://www.golem.de/news/certificate-transparency-hacking-web-applications-before-they-are-installed-1707-129172.html)
 
-(Def Con 25: Abusing Certificate Transparency Logs / talk announcement)[https://defcon.org/html/defcon-25/dc-25-speakers.html#Böck]
+[Def Con 25: Abusing Certificate Transparency Logs (talk announcement)](https://defcon.org/html/defcon-25/dc-25-speakers.html#Böck)
 
 scripts
 =======
